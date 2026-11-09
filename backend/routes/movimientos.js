@@ -1,28 +1,69 @@
 const router = require('express').Router();
 const pool = require('../db');
 
-// GET /api/movimientos?id_producto=5&tipo=SALIDA&limit=20&offset=0
+// ¿Es una fecha real con formato AAAA-MM-DD? ('2026-02-30' tiene el formato, pero no existe)
+function esFecha(v) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !isNaN(d) && d.toISOString().slice(0, 10) === v;
+}
+
+// GET /api/movimientos?id_producto=5&id_motivo=2&id_usuario=3&tipo=SALIDA
+//                     &desde=2026-10-01&hasta=2026-10-31&limit=20&offset=0
 router.get('/', async (req, res) => {
-  const { id_producto, tipo } = req.query;
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
-  const offset = Number(req.query.offset) || 0;
+  const { id_producto, id_motivo, id_usuario, tipo, desde, hasta } = req.query;
+  const limit = Math.min(Math.max(Math.floor(Number(req.query.limit)) || 50, 1), 200);
+  const offset = Math.max(Math.floor(Number(req.query.offset)) || 0, 0);
   const condiciones = [];
   const valores = [];
 
-  if (id_producto) {
-    valores.push(Number(id_producto));
-    condiciones.push(`m.id_producto = $${valores.length}`);
+  // Filtros por id: deben ser enteros positivos. Las columnas salen de este objeto
+  // (no del cliente), por eso es seguro escribirlas dentro del SQL
+  const porId = {
+    'm.id_producto': id_producto,
+    'm.id_motivo': id_motivo,
+    'm.id_usuario': id_usuario,
+  };
+  for (const [columna, valor] of Object.entries(porId)) {
+    if (valor === undefined || valor === '') continue;
+    const n = Number(valor);
+    if (!Number.isInteger(n) || n <= 0) {
+      return res.status(400).json({ error: 'Los filtros de producto, motivo y usuario deben ser números enteros' });
+    }
+    valores.push(n);
+    condiciones.push(`${columna} = $${valores.length}`);
   }
+
   if (tipo) {
-    valores.push(String(tipo).toUpperCase());
+    const t = String(tipo).toUpperCase();
+    if (t !== 'ENTRADA' && t !== 'SALIDA') {
+      return res.status(400).json({ error: 'El tipo debe ser ENTRADA o SALIDA' });
+    }
+    valores.push(t);
     condiciones.push(`mo.tipo = $${valores.length}`);
+  }
+
+  if (desde) {
+    if (!esFecha(desde)) {
+      return res.status(400).json({ error: 'La fecha desde debe tener el formato AAAA-MM-DD' });
+    }
+    valores.push(desde);
+    condiciones.push(`m.fecha >= $${valores.length}::date`);
+  }
+  if (hasta) {
+    if (!esFecha(hasta)) {
+      return res.status(400).json({ error: 'La fecha hasta debe tener el formato AAAA-MM-DD' });
+    }
+    valores.push(hasta);
+    // "hasta" incluye todo ese día: se compara contra el inicio del día siguiente
+    condiciones.push(`m.fecha < $${valores.length}::date + 1`);
   }
 
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   valores.push(limit, offset);
 
   const { rows } = await pool.query(
-    `SELECT m.id_movimiento, m.fecha, p.referencia, p.nombre AS producto,
+    `SELECT m.id_movimiento, m.fecha, p.referencia, p.nombre AS producto, p.color,
             mo.nombre AS motivo, mo.tipo, u.nombre AS usuario,
             m.cantidad_metros, m.precio_metro,
             m.cantidad_metros * m.precio_metro AS valor_total

@@ -4,7 +4,7 @@ const { limpiar, cabe, esEntero, esNumero } = require('../utils/validar');
 
 // Consulta base: producto + categoría + proveedor + stock calculado por la vista
 const SELECT_PRODUCTO = `
-  SELECT p.id_producto, p.referencia, p.nombre,
+  SELECT p.id_producto, p.referencia, p.nombre, p.id_categoria, p.id_proveedor,
          c.nombre AS categoria, p.color, p.precio_metro,
          s.stock_actual, p.stock_minimo,
          (s.stock_actual < p.stock_minimo) AS stock_bajo,

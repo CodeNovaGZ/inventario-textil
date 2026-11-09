@@ -18,6 +18,7 @@ app.use('/api/productos', require('./routes/productos'));
 app.use('/api/movimientos', require('./routes/movimientos'));
 app.use('/api/resumen', require('./routes/resumen'));
 app.use('/api/proveedores', require('./routes/proveedores'));
+app.use('/api/categorias', require('./routes/categorias'));
 // Si ninguna ruta coincidió
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
