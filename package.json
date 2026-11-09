@@ -1,0 +1,14 @@
+{
+  "name": "inventario-textil",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:db": "docker compose up -d --wait",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}
